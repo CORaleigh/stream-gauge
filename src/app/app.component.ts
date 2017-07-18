@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { StreamDataService } from './stream-data.service'; 
 
 @Component({
   selector: 'app-root',
