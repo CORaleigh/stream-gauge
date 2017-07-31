@@ -12,36 +12,25 @@ import * as moment from 'moment';
 export class ChartViewComponent implements OnInit {
 
   data: any[]; 
-  private host; // D3 object referebcing host dom object
-  private svg; // SVG in which we will print our chart
-  private margin; // Space between the svg borders and the actual chart graphic
-  private width; // Component width
-  private height; // Component height
-  private xScale; // D3 scale in X
-  private yScale; // D3 scale in Y
-  private xAxis; // D3 X Axis
-  private yAxis; // D3 Y Axis
-  private htmlElement; // Host HTMLElement
 
   sites: any = {
     crabtreeEb: 'CRABTREE+CR+AT+EBENEZER+CHURCH+RD+NR+RALEIGH%2C',
-    lrZeb: 'LITTLE+RIVER+NEAR+ZEBULON%2C'
+    lrZeb: 'LITTLE+RIVER+NEAR+ZEBULON%2C',
+    rbbpd: 'ROCKY+BRANCH+BELOW+PULLEN+DRIVE+AT+RALEIGH%2C', 
+    wcasd: 'WALNUT+CREEK+AT+SUNNYBROOK+DRIVE+NR+RALEIGH%2C',
+    mcnnh: 'MARSH+CREEK+NEAR+NEW+HOPE%2C',
+    phcacv: 'PIGEON+HOUSE+CR+AT+CAMERON+VILLAGE+AT+RALEIGH%2C',
+    bcadnc: 'BEAVERDAM+CREEK+AT+DAM+NEAR+CREEDMOOR%2C',
+    wocamngl: 'WHITE+OAK+CR+AT+MOUTH+NEAR+GREEN+LEVEL%2C',
+    scnmc: 'SWIFT+CREEK+NEAR+MCCULLARS+CROSSROADS%2C',
+    scna: 'SWIFT+CREEK+NEAR+APEX%2C',
+    ccaowf: 'CRABTREE+CR+AT+OLD+WAKE+FOREST+RD+AT+RALEIGH%2C',
+    ccah7: 'CRABTREE+CREEK+AT+HWY+70+AT+RALEIGH%2C',
+    ccaad: 'CRABTREE+CREEK+AT+ANDERSON+DRIVE+AT+RALEIGH%2C',
+    ccaus1: 'CRABTREE+CREEK+AT+US+1+AT+RALEIGH%2C',
+    nrnf: 'NEUSE+RIVER+NEAR+FALLS%2C'
   }
 
-
-// ROCKY+BRANCH+BELOW+PULLEN+DRIVE+AT+RALEIGH%2C
-// WALNUT+CREEK+AT+SUNNYBROOK+DRIVE+NR+RALEIGH%2C
-// MARSH+CREEK+NEAR+NEW+HOPE%2C
-// PIGEON+HOUSE+CR+AT+CAMERON+VILLAGE+AT+RALEIGH%2C
-// BEAVERDAM+CREEK+AT+DAM+NEAR+CREEDMOOR%2C
-// WHITE+OAK+CR+AT+MOUTH+NEAR+GREEN+LEVEL%2C
-// SWIFT+CREEK+NEAR+MCCULLARS+CROSSROADS%2C
-// SWIFT+CREEK+NEAR+APEX%2C
-// CRABTREE+CR+AT+OLD+WAKE+FOREST+RD+AT+RALEIGH%2C
-// CRABTREE+CREEK+AT+HWY+70+AT+RALEIGH%2C
-// CRABTREE+CREEK+AT+ANDERSON+DRIVE+AT+RALEIGH%2C
-// CRABTREE+CREEK+AT+US+1+AT+RALEIGH%2C
-// NEUSE+RIVER+NEAR+FALLS%2C
 
   constructor(private streamDataService: StreamDataService) { }
 
@@ -53,6 +42,7 @@ export class ChartViewComponent implements OnInit {
     this.streamDataService.getStreamData(site).subscribe(
       data => {
         this.data = data; 
+        this.generateCharts(data); 
         console.log(data); 
       },
       err => {
@@ -61,61 +51,72 @@ export class ChartViewComponent implements OnInit {
     )
   }
 
-  generateCharts() {
-    var svg = d3.select("svg"),
-    margin = {top: 20, right: 20, bottom: 30, left: 50},
-    width = +svg.attr("width") - margin.left - margin.right,
-    height = +svg.attr("height") - margin.top - margin.bottom,
-    g = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+  generateCharts(things){
+    // set the dimensions and margins of the graph
+    var margin = {top: 20, right: 20, bottom: 30, left: 50},
+        width = 960 - margin.left - margin.right,
+        height = 500 - margin.top - margin.bottom;
 
-    var parseTime = d3.timeParse("%d-%b-%y");
+  
 
-    var x = d3.scaleTime()
-        .rangeRound([0, width]);
+    // set the ranges
+    var x = d3.scaleTime().range([0, width]);
+    var y = d3.scaleLinear().range([height, 0]);
 
-    var y = d3.scaleLinear()
-        .rangeRound([height, 0]);
+    // define the line
+    var valueline = d3.line()
+        .x(function(d) { return x(d.dateTime); })
+        .y(function(d) { return y(d.value); });
+    
 
-    var line = d3.line()
-        .x(function(d) { return x(d.date); })
-        .y(function(d) { return y(d.close); });
+    var svg = d3.select("body").append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform",
+            "translate(" + margin.left + "," + margin.top + ")");
+     
+    draw(things);
 
-    d3.tsv("data.tsv", function(d) {
-      d.date = parseTime(d.date);
-      d.close = +d.close;
-      return d;
-    }, function(error, data) {
-      if (error) throw error;
+    function draw(data) {
+    
+    console.log(data["features"]); 
+    var data = data["features"];
+    
+    // format the data
+    data.forEach(function(d) { 
+        d.dateTime = +d["attributes"]["dateTime"];
+        d.value = +d["attributes"]["value"];
+    });
+    console.log(data); 
+    // sort years ascending
+    data.sort(function(a, b){
+        return a["attributes"]["value"]-b["attributes"]["value"];
+        })
+    
+    // Scale the range of the data
+    x.domain(d3.extent(data, function(d) { return d.dateTime; }));
+    y.domain([0, d3.max(data, function(d) {
+        return Math.max(d.value); })]);
+    
+    // Add the valueline path.
+    svg.append("path")
+        .data([data])
+        .attr("class", "line")
+        .attr("d", valueline);
+   
 
-      x.domain(d3.extent(data, function(d) { return d.date; }));
-      y.domain(d3.extent(data, function(d) { return d.close; }));
+    // Add the X Axis
+    svg.append("g")
+        .attr("transform", "translate(0," + height + ")")
+        .call(d3.axisBottom(x));
 
-      g.append("g")
-          .attr("transform", "translate(0," + height + ")")
-          .call(d3.axisBottom(x))
-        .select(".domain")
-          .remove();
+    // Add the Y Axis
+    svg.append("g")
+        .call(d3.axisLeft(y));
+    }
 
-      g.append("g")
-          .call(d3.axisLeft(y))
-        .append("text")
-          .attr("fill", "#000")
-          .attr("transform", "rotate(-90)")
-          .attr("y", 6)
-          .attr("dy", "0.71em")
-          .attr("text-anchor", "end")
-          .text("Price ($)");
-
-      g.append("path")
-          .datum(data)
-          .attr("fill", "none")
-          .attr("stroke", "steelblue")
-          .attr("stroke-linejoin", "round")
-          .attr("stroke-linecap", "round")
-          .attr("stroke-width", 1.5)
-          .attr("d", line);
-        });
-  }
+}
 
 
 }
